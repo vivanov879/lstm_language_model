@@ -245,8 +245,8 @@ for i = 1, 1000 do
         sample_sentence[#sample_sentence + 1] = vocabulary[sampled_index[1][1]]
         target_sentence[#target_sentence + 1] = vocabulary[y[1][t]]
      end
-    print(sample_sentence)
-    print(target_sentence)
+    print(table.concat(target_sentence, ' '))
+    print(table.concat(sample_sentence, ' '))
     print(string.format("iteration %4d, loss = %6.8f, loss/seq_len = %6.8f, gradnorm = %6.4e", i, loss[1], loss[1] / seq_length, grad_params:norm()))
     end
     
