@@ -69,6 +69,7 @@ x_train_raw = read_words('x_train_sorted1')
 y_train_raw = read_words('y_train_sorted1')
 
 
+
 x_train_lens = torch.Tensor(#x_train_raw)
 for i, sentence in pairs(x_train_raw) do 
   x_train_lens[i] = #sentence
@@ -83,6 +84,7 @@ for i = 1, indexes:size(1) do
   y_train[#y_train + 1] = y_train_raw[indexes[i]]
 end
 
+--[[
 fd = io.open('x_train_sorted', 'w')
 for _, sentence in pairs(x_train) do
   fd:write(table.concat(sentence, ' ') .. '\n')
@@ -92,13 +94,14 @@ fd = io.open('y_train_sorted', 'w')
 for _, sentence in pairs(y_train) do
   fd:write(table.concat(sentence, ' ') .. '\n')
 end
+]]--
 
 x_dev_raw = read_words('x_train_sorted1')
 y_dev_raw = read_words('y_train_sorted1')
 
 max_sentence_len = math.max(calc_max_sentence_len(x_dev_raw), calc_max_sentence_len(x_train_raw))
 
-batch_size = 4
+batch_size = 2
 n_data = #x_train_raw
 data_index = 1
 
