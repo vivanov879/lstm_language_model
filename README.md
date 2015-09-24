@@ -1,4 +1,3 @@
-# lstm_language_model
 Torch implementation of LSTM Language Modelling.
 
 - In Terminal.app, run ```python extract_datasets_for_torch.py ``` to generate data for the model. You can adjust vocabsize in the script if you want.
