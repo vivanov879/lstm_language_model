@@ -68,6 +68,7 @@ vocab_size = #vocabulary
 x_train_raw = read_words('x_train_sorted1')
 y_train_raw = read_words('y_train_sorted1')
 
+
 x_train_lens = torch.Tensor(#x_train_raw)
 for i, sentence in pairs(x_train_raw) do 
   x_train_lens[i] = #sentence
@@ -82,7 +83,6 @@ for i = 1, indexes:size(1) do
   y_train[#y_train + 1] = y_train_raw[indexes[i]]
 end
 
---[[
 fd = io.open('x_train_sorted', 'w')
 for _, sentence in pairs(x_train) do
   fd:write(table.concat(sentence, ' ') .. '\n')
@@ -92,7 +92,6 @@ fd = io.open('y_train_sorted', 'w')
 for _, sentence in pairs(y_train) do
   fd:write(table.concat(sentence, ' ') .. '\n')
 end
-]]--
 
 x_dev_raw = read_words('x_train_sorted1')
 y_dev_raw = read_words('y_train_sorted1')
@@ -240,6 +239,7 @@ for i = 1, 1000 do
       target_sentence = {}
       
       for t = 1, x:size(2) do 
+        print(x:size(2))
         _, sampled_index = prediction[t]:max(2)
         --print(sampled_index)
         sample_sentence[#sample_sentence + 1] = vocabulary[sampled_index[1][1]]
