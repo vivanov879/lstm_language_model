@@ -61,14 +61,14 @@ for i, sentence in pairs(vocabulary_raw) do
   inv_vocabulary[sentence[2]] = tonumber(sentence[1])
 end
 
-vocabulary[#vocabulary + 1] = ['EOSMASK']
+vocabulary[#vocabulary + 1] = 'EOSMASK'
 inv_vocabulary['EOSMASK'] = #vocabulary
 vocab_size = #vocabulary
 
 
 
-x_train_raw = read_words('x_train')
-y_train_raw = read_words('y_train')
+x_train_raw = read_words('x_train1')
+y_train_raw = read_words('y_train1')
 
 
 x_train_lens = torch.Tensor(#x_train_raw)
@@ -80,15 +80,15 @@ sorted, indexes = torch.sort(x_train_lens, 1)
 
 x_train = {}
 y_train = {}
-for _, i in pairs(indexes) do
+for i = 1, indexes:size(1) do
   x_train[#x_train] = x_train_raw[i]
   y_train[#y_train] = y_train_raw[i]
 end
 
 
 
-x_dev_raw = read_words('x_dev')
-y_dev_raw = read_words('y_dev')
+x_dev_raw = read_words('x_dev1')
+y_dev_raw = read_words('y_dev1')
 
 max_sentence_len = math.max(calc_max_sentence_len(x_dev_raw), calc_max_sentence_len(x_train_raw))
 
@@ -125,13 +125,15 @@ function gen_batch()
     return t[{{}, {1, max_sentence_len_batch}}], mask[{{1, max_sentence_len_batch},{},{}}]
   end
   
-  batch_x, mask_x = f(x_train)
-  batch_y, mask_y = f(y_train)
+  local batch_x, mask_x = f(x_train)
+  local batch_y, mask_y = f(y_train)
   
   data_index = data_index + 1
   if data_index > n_data then 
     data_index = 1
   end
+  
+  return batch_x, mask_x, batch_y, mask_y
   
 end
 
@@ -139,7 +141,6 @@ end
 opt = {}
 rnn_size = 100
 seq_length = x_train:size(2)
-assert(x_train:siz)
 opt.rnn_size = rnn_size
 
 x_raw = nn.Identity()()
@@ -182,8 +183,7 @@ function feval(params_)
     end
     grad_params:zero()
     
-    x, y = gen_batch()
-    
+    x, mask_x, y, mask_y  = gen_batch()
     
     ------------------- forward pass -------------------
     local lstm_c = {[0]=initstate_c} -- internal cell states of LSTM
