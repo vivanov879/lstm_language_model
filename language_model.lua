@@ -39,7 +39,7 @@ end
 
 function calc_max_sentence_len(sentences)
   local m = 1
-  for _, sentence in pairs(sentences_en) do
+  for _, sentence in pairs(sentences) do
     m = math.max(m, #sentence)
   end
   return m
@@ -93,7 +93,7 @@ y_dev_raw = read_words('y_dev1')
 max_sentence_len = math.max(calc_max_sentence_len(x_dev_raw), calc_max_sentence_len(x_train_raw))
 
 batch_size = 2
-n_data = x_train:size(1)
+n_data = #x_train_raw
 data_index = 1
 
 
@@ -140,7 +140,7 @@ end
 
 opt = {}
 rnn_size = 100
-seq_length = x_train:size(2)
+seq_length = max_sentence_len
 opt.rnn_size = rnn_size
 
 x_raw = nn.Identity()()
@@ -191,7 +191,7 @@ function feval(params_)
     local predictions = {}           -- softmax outputs
     local loss = 0
 
-    for t=1,opt.seq_length do
+    for t=1,seq_length do
       lstm_c[t], lstm_h[t], predictions[t]  = unpack(lstm_clones[t]:forward({x[{{}, t}], lstm_c[t-1], lstm_h[t-1]}))
       loss = loss + criterion_clones[t]:forward(predictions[t], y[{{}, t}])
     end
@@ -228,11 +228,11 @@ for i = 1, iterations do
     local _, loss = optim.adagrad(feval, params, optim_state)
     losses[#losses + 1] = loss[1]
 
-    if i % opt.save_every == 0 then
-        torch.save(opt.savefile, protos)
+    if i % 100 == 0 then
+        torch.save('lstm_model', lstm)
     end
-    if i % opt.print_every == 0 then
-        print(string.format("iteration %4d, loss = %6.8f, loss/seq_len = %6.8f, gradnorm = %6.4e", i, loss[1], loss[1] / opt.seq_length, grad_params:norm()))
+    if i % 10 == 0 then
+        print(string.format("iteration %4d, loss = %6.8f, loss/seq_len = %6.8f, gradnorm = %6.4e", i, loss[1], loss[1] / seq_length, grad_params:norm()))
     end
 end
 
