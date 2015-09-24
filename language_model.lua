@@ -65,43 +65,18 @@ vocabulary[#vocabulary + 1] = 'EOSMASK'
 inv_vocabulary['EOSMASK'] = #vocabulary
 vocab_size = #vocabulary
 
-x_train_raw = read_words('x_train_sorted1')
-y_train_raw = read_words('y_train_sorted1')
+x_train_raw = read_words('x_train_sorted')
+y_train_raw = read_words('y_train_sorted')
 
-
-
-x_train_lens = torch.Tensor(#x_train_raw)
-for i, sentence in pairs(x_train_raw) do 
-  x_train_lens[i] = #sentence
-end
-
-sorted, indexes = torch.sort(x_train_lens, 1)
-
-x_train = {}
-y_train = {}
-for i = 1, indexes:size(1) do
-  x_train[#x_train + 1] = x_train_raw[indexes[i]]
-  y_train[#y_train + 1] = y_train_raw[indexes[i]]
-end
-
---[[
-fd = io.open('x_train_sorted', 'w')
-for _, sentence in pairs(x_train) do
-  fd:write(table.concat(sentence, ' ') .. '\n')
-end
-
-fd = io.open('y_train_sorted', 'w')
-for _, sentence in pairs(y_train) do
-  fd:write(table.concat(sentence, ' ') .. '\n')
-end
-]]--
+x_train = x_train_raw
+y_train = y_train_raw
 
 x_dev_raw = read_words('x_train_sorted1')
 y_dev_raw = read_words('y_train_sorted1')
 
 max_sentence_len = math.max(calc_max_sentence_len(x_dev_raw), calc_max_sentence_len(x_train_raw))
 
-batch_size = 2
+batch_size = 100
 n_data = #x_train_raw
 data_index = 1
 
@@ -113,6 +88,7 @@ function gen_batch()
     data_index = 1
   end
   start_index = end_index - batch_size
+  data_index = data_index + batch_size
   
   function f(sentences)
     local t = torch.zeros(batch_size, max_sentence_len)
@@ -137,10 +113,7 @@ function gen_batch()
   local batch_x, mask_x = f(x_train)
   local batch_y, mask_y = f(y_train)
   
-  data_index = data_index + 1
-  if data_index > n_data then 
-    data_index = 1
-  end
+  
   
   return batch_x, mask_x, batch_y, mask_y
   
@@ -236,7 +209,7 @@ local optim_state = {learningRate = 1e-1}
 for i = 1, 1000 do
     local _, loss = optim.adagrad(feval, params, optim_state)
     losses[#losses + 1] = loss[1]
-    if i % 1 == 0 then
+    if i % 10 == 0 then
       
       sample_sentence = {}
       target_sentence = {}
