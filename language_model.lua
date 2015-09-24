@@ -37,14 +37,108 @@ function convert2tensors(sentences)
   return t  
 end
 
+function calc_max_sentence_len(sentences)
+  local m = 1
+  for _, sentence in pairs(sentences_en) do
+    m = math.max(m, #sentence)
+  end
+  return m
+end
 
+
+
+
+vocabulary_raw = read_words('vocabulary_raw')
+inv_vocabulary_raw = read_words('inv_vocabulary_raw')
+
+
+
+vocabulary = {}
+inv_vocabulary = {}
+
+for i, sentence in pairs(vocabulary_raw) do 
+  vocabulary[tonumber(sentence[1])] = sentence[2]
+  inv_vocabulary[sentence[2]] = tonumber(sentence[1])
+end
+
+vocabulary[#vocabulary + 1] = ['EOSMASK']
+inv_vocabulary['EOSMASK'] = #vocabulary
+vocab_size = #vocabulary
+
+
+
+x_train_raw = read_words('x_train')
+y_train_raw = read_words('y_train')
+
+
+x_train_lens = torch.Tensor(#x_train_raw)
+for i, sentence in pairs(x_train_raw) do 
+  x_train_lens[i] = #sentence
+end
+
+sorted, indexes = torch.sort(x_train_lens, 1)
+
+x_train = {}
+y_train = {}
+for _, i in pairs(indexes) do
+  x_train[#x_train] = x_train_raw[i]
+  y_train[#y_train] = y_train_raw[i]
+end
+
+
+
+x_dev_raw = read_words('x_dev')
+y_dev_raw = read_words('y_dev')
+
+max_sentence_len = math.max(calc_max_sentence_len(x_dev_raw), calc_max_sentence_len(x_train_raw))
+
+batch_size = 2
+n_data = x_train:size(1)
+data_index = 1
+
+
+function gen_batch()
+  end_index = data_index + batch_size
+  if end_index > n_data then
+    end_index = n_data
+    data_index = 1
+  end
+  start_index = end_index - batch_size
+
+  sentences = x_train
+  t = torch.zeros(batch_size, max_sentence_len)
+  mask = torch.zeros(max_sentence_len, batch_size, batch_size)
+  max_sentence_len_batch = 1
+  for k = 1, batch_size do
+    sentence = sentences[start_index + k - 1]
+    max_sentence_len_batch = math.max(max_sentence_len_batch, #sentence)
+    for i = 1, max_sentence_len do 
+      if i <= #sentence then
+        t[k][i] = sentence[i]
+        mask[i][k][k] = 1
+      else
+        t[k][i] = vocab_size
+        mask[i][k][k] = 0
+      end
+      
+    end
+  end
+  batch_ru = t[{{}, {1, max_sentence_len_batch}}]:clone()
+  mask_ru = mask[{{1, max_sentence_len_batch},{},{}}]:clone()
+  
+  data_index = data_index + 1
+  if data_index > n_data then 
+    data_index = 1
+  end
+  
+end
 
 
 opt = {}
 rnn_size = 100
-seq_length = 5
+seq_length = x_train:size(2)
+assert(x_train:siz)
 opt.rnn_size = rnn_size
-batch_size = 2
 
 x_raw = nn.Identity()()
 x = Embedding(vocab_size, rnn_size)(x_raw)
@@ -56,7 +150,7 @@ next_h, next_c = make_lstm_step(opt, x, prev_h, prev_c)
 z = nn.Linear(rnn_size, vocab_size)(next_h)
 prediction = nn.LogSoftMax()(z)
 
-lstm = nn.gModule({x_raw}, {prediction, next_h, next_c})
+lstm = nn.gModule({x_raw, prev_c, prev_h}, {next_c, next_h, prediction})
 
 
 criterion = nn.ClassNLLCriterion()
@@ -68,9 +162,11 @@ params:uniform(-0.08, 0.08)
 
 -- make a bunch of clones, AFTER flattening, as that reallocates memory
 lstm_clones = model_utils.clone_many_times(lstm, seq_length)
+criterion_clones = model_utils.clone_many_times(criterion, seq_length)
+
 
 -- LSTM initial state (zero initially, but final state gets sent to initial state when we do BPTT)
-local initstate_c = torch.zeros(batch_size, rnn_size)
+local initstate_c = torch.zeros(1, rnn_size)
 local initstate_h = initstate_c:clone()
 
 -- LSTM final state's backward message (dloss/dfinalstate) is 0, since it doesn't influence predictions
@@ -84,55 +180,31 @@ function feval(params_)
     end
     grad_params:zero()
     
-    ------------------ get minibatch -------------------
-    local x, y = loader:next_batch()
-
+    x, y = gen_batch()
+    
+    
     ------------------- forward pass -------------------
-    local embeddings = {}            -- input embeddings
     local lstm_c = {[0]=initstate_c} -- internal cell states of LSTM
     local lstm_h = {[0]=initstate_h} -- output values of LSTM
     local predictions = {}           -- softmax outputs
     local loss = 0
 
     for t=1,opt.seq_length do
-        embeddings[t] = clones.embed[t]:forward(x[{{}, t}])
-
-        -- we're feeding the *correct* things in here, alternatively
-        -- we could sample from the previous timestep and embed that, but that's
-        -- more commonly done for LSTM encoder-decoder models
-        lstm_c[t], lstm_h[t] = unpack(clones.lstm[t]:forward{embeddings[t], lstm_c[t-1], lstm_h[t-1]})
-
-        predictions[t] = clones.softmax[t]:forward(lstm_h[t])
-        loss = loss + clones.criterion[t]:forward(predictions[t], y[{{}, t}])
+      lstm_c[t], lstm_h[t], predictions[t]  = unpack(lstm_clones[t]:forward({x[{{}, t}], lstm_c[t-1], lstm_h[t-1]}))
+      loss = loss + criterion_clones[t]:forward(predictions[t], y[{{}, t}])
     end
 
     ------------------ backward pass -------------------
     -- complete reverse order of the above
-    local dembeddings = {}                              -- d loss / d input embeddings
-    local dlstm_c = {[opt.seq_length]=dfinalstate_c}    -- internal cell states of LSTM
-    local dlstm_h = {}                                  -- output values of LSTM
-    for t=opt.seq_length,1,-1 do
-        -- backprop through loss, and softmax/linear
-        local doutput_t = clones.criterion[t]:backward(predictions[t], y[{{}, t}])
-        -- Two cases for dloss/dh_t: 
-        --   1. h_T is only used once, sent to the softmax (but not to the next LSTM timestep).
-        --   2. h_t is used twice, for the softmax and for the next step. To obey the
-        --      multivariate chain rule, we add them.
-        if t == opt.seq_length then
-            assert(dlstm_h[t] == nil)
-            dlstm_h[t] = clones.softmax[t]:backward(lstm_h[t], doutput_t)
-        else
-            dlstm_h[t]:add(clones.softmax[t]:backward(lstm_h[t], doutput_t))
-        end
+    local dlstm_c = {[seq_length]=dfinalstate_c}
+    local dlstm_h = {[seq_length]=dfinalstate_c}
+    local dpredictions = {}
+    local dx = {}
+    
+    for t=seq_length,1,-1 do
 
-        -- backprop through LSTM timestep
-        dembeddings[t], dlstm_c[t-1], dlstm_h[t-1] = unpack(clones.lstm[t]:backward(
-            {embeddings[t], lstm_c[t-1], lstm_h[t-1]},
-            {dlstm_c[t], dlstm_h[t]}
-        ))
-
-        -- backprop through embeddings
-        clones.embed[t]:backward(x[{{}, t}], dembeddings[t])
+      dpredictions[t] = criterion_clones[t]:backward(predictions[t], y[{{}, t}])
+      dx[t], dlstm_c[t-1], dlstm_h[t-1] = unpack(lstm_clones[t]:backward({x[{{}, t}], lstm_c[t-1], lstm_h[t-1]}, {dlstm_c[t], dlstm_h[t], dpredictions[t]}))
     end
 
     ------------------------ misc ----------------------
