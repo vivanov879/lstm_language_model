@@ -65,11 +65,8 @@ vocabulary[#vocabulary + 1] = 'EOSMASK'
 inv_vocabulary['EOSMASK'] = #vocabulary
 vocab_size = #vocabulary
 
-
-
-x_train_raw = read_words('x_train1')
-y_train_raw = read_words('y_train1')
-
+x_train_raw = read_words('x_train_sorted1')
+y_train_raw = read_words('y_train_sorted1')
 
 x_train_lens = torch.Tensor(#x_train_raw)
 for i, sentence in pairs(x_train_raw) do 
@@ -81,14 +78,24 @@ sorted, indexes = torch.sort(x_train_lens, 1)
 x_train = {}
 y_train = {}
 for i = 1, indexes:size(1) do
-  x_train[#x_train] = x_train_raw[i]
-  y_train[#y_train] = y_train_raw[i]
+  x_train[#x_train + 1] = x_train_raw[indexes[i]]
+  y_train[#y_train + 1] = y_train_raw[indexes[i]]
 end
 
+--[[
+fd = io.open('x_train_sorted', 'w')
+for _, sentence in pairs(x_train) do
+  fd:write(table.concat(sentence, ' ') .. '\n')
+end
 
+fd = io.open('y_train_sorted', 'w')
+for _, sentence in pairs(y_train) do
+  fd:write(table.concat(sentence, ' ') .. '\n')
+end
+]]--
 
-x_dev_raw = read_words('x_dev1')
-y_dev_raw = read_words('y_dev1')
+x_dev_raw = read_words('x_train_sorted1')
+y_dev_raw = read_words('y_train_sorted1')
 
 max_sentence_len = math.max(calc_max_sentence_len(x_dev_raw), calc_max_sentence_len(x_train_raw))
 
@@ -188,25 +195,27 @@ function feval(params_)
     ------------------- forward pass -------------------
     local lstm_c = {[0]=initstate_c} -- internal cell states of LSTM
     local lstm_h = {[0]=initstate_h} -- output values of LSTM
-    local predictions = {}           -- softmax outputs
+    local prediction = {}           -- softmax outputs
     local loss = 0
 
     for t=1,seq_length do
-      lstm_c[t], lstm_h[t], predictions[t]  = unpack(lstm_clones[t]:forward({x[{{}, t}], lstm_c[t-1], lstm_h[t-1]}))
-      loss = loss + criterion_clones[t]:forward(predictions[t], y[{{}, t}])
+      lstm_c[t], lstm_h[t], prediction[t]  = unpack(lstm_clones[t]:forward({x[{{}, t}], lstm_c[t-1], lstm_h[t-1]}))
+      prediction[t] = torch.mm(mask_x[t], prediction[t])
+      loss = loss + criterion_clones[t]:forward(prediction[t], y[{{}, t}])
     end
 
     ------------------ backward pass -------------------
     -- complete reverse order of the above
     local dlstm_c = {[seq_length]=dfinalstate_c}
     local dlstm_h = {[seq_length]=dfinalstate_c}
-    local dpredictions = {}
+    local dprediction = {}
     local dx = {}
     
     for t=seq_length,1,-1 do
 
-      dpredictions[t] = criterion_clones[t]:backward(predictions[t], y[{{}, t}])
-      dx[t], dlstm_c[t-1], dlstm_h[t-1] = unpack(lstm_clones[t]:backward({x[{{}, t}], lstm_c[t-1], lstm_h[t-1]}, {dlstm_c[t], dlstm_h[t], dpredictions[t]}))
+      dprediction[t] = criterion_clones[t]:backward(prediction[t], y[{{}, t}])
+      dprediction[t] = torch.mm(mask_x[t], dprediction[t])
+      dx[t], dlstm_c[t-1], dlstm_h[t-1] = unpack(lstm_clones[t]:backward({x[{{}, t}], lstm_c[t-1], lstm_h[t-1]}, {dlstm_c[t], dlstm_h[t], dprediction[t]}))
     end
 
     ------------------------ misc ----------------------
@@ -223,17 +232,18 @@ end
 -- optimization stuff
 local losses = {}
 local optim_state = {learningRate = 1e-1}
-local iterations = opt.max_epochs * loader.nbatches
-for i = 1, iterations do
+for i = 1, 1000 do
     local _, loss = optim.adagrad(feval, params, optim_state)
     losses[#losses + 1] = loss[1]
-
+    if i % 1 == 0 then
+        print(string.format("iteration %4d, loss = %6.8f, loss/seq_len = %6.8f, gradnorm = %6.4e", i, loss[1], loss[1] / seq_length, grad_params:norm()))
+    end
+    
+    
     if i % 100 == 0 then
         torch.save('lstm_model', lstm)
     end
-    if i % 10 == 0 then
-        print(string.format("iteration %4d, loss = %6.8f, loss/seq_len = %6.8f, gradnorm = %6.4e", i, loss[1], loss[1] / seq_length, grad_params:norm()))
-    end
+
 end
 
 
