@@ -99,7 +99,7 @@ y_dev_raw = read_words('y_train_sorted1')
 
 max_sentence_len = math.max(calc_max_sentence_len(x_dev_raw), calc_max_sentence_len(x_train_raw))
 
-batch_size = 2
+batch_size = 4
 n_data = #x_train_raw
 data_index = 1
 
@@ -198,7 +198,7 @@ function feval(params_)
     local prediction = {}           -- softmax outputs
     local loss = 0
 
-    for t=1,seq_length do
+    for t=1, x:size(2) do
       lstm_c[t], lstm_h[t], prediction[t]  = unpack(lstm_clones[t]:forward({x[{{}, t}], lstm_c[t-1], lstm_h[t-1]}))
       prediction[t] = torch.mm(mask_x[t], prediction[t])
       loss = loss + criterion_clones[t]:forward(prediction[t], y[{{}, t}])
@@ -206,13 +206,12 @@ function feval(params_)
 
     ------------------ backward pass -------------------
     -- complete reverse order of the above
-    local dlstm_c = {[seq_length]=dfinalstate_c}
-    local dlstm_h = {[seq_length]=dfinalstate_c}
+    local dlstm_c = {[x:size(2)]=dfinalstate_c}
+    local dlstm_h = {[x:size(2)]=dfinalstate_c}
     local dprediction = {}
     local dx = {}
     
-    for t=seq_length,1,-1 do
-
+    for t=x:size(2),1,-1 do
       dprediction[t] = criterion_clones[t]:backward(prediction[t], y[{{}, t}])
       dprediction[t] = torch.mm(mask_x[t], dprediction[t])
       dx[t], dlstm_c[t-1], dlstm_h[t-1] = unpack(lstm_clones[t]:backward({x[{{}, t}], lstm_c[t-1], lstm_h[t-1]}, {dlstm_c[t], dlstm_h[t], dprediction[t]}))
