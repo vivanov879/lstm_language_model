@@ -8,13 +8,43 @@ require 'lstm'
 local model_utils=require 'model_utils'
 
 
+
+function read_words(fn)
+  fd = io.lines(fn)
+  sentences = {}
+  line = fd()
+
+  while line do
+    sentence = {}
+    for _, word in pairs(string.split(line, " ")) do
+        sentence[#sentence + 1] = word
+    end
+    sentences[#sentences + 1] = sentence
+    line = fd()
+  end
+  return sentences
+end
+
+
+function convert2tensors(sentences)
+  local t = torch.Tensor(#sentences, #sentences[1])
+  for k, sentence in pairs(sentences) do
+    assert(#sentence == #sentences[1])
+    for i = 1, #sentence do 
+      t[k][i] = tonumber(sentence[i])
+    end
+  end
+  return t  
+end
+
+
+
+
 opt = {}
 rnn_size = 100
 seq_length = 5
 opt.rnn_size = rnn_size
 batch_size = 2
-
-
 
 x_raw = nn.Identity()()
 x = Embedding(vocab_size, rnn_size)(x_raw)

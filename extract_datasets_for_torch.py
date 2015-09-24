@@ -39,3 +39,34 @@ print " ".join(d[0] for d in docs[7])
 print S_test[7]
 
 
+
+with open('inv_vocabulary_raw', 'w') as f1:
+    with open('vocabulary_raw', 'w') as f2:
+        lines1 = []
+        lines2 = []
+        for word, num in word_to_num.items():
+            lines1.append(word + ' ' + str(num+1) + '\n')
+            lines2.append(str(num+1) + ' ' + word + '\n')
+        f1.writelines(lines1)
+        f2.writelines(lines2)
+
+with open('x_train', 'w') as f1:
+    with open('y_train', 'w') as f2:
+        lines1 = []
+        lines2 = []
+        for i in range(len(X_train)):
+            lines1.append(' '.join([str(k+1) for k in X_train[i]]) + '\n')
+            lines2.append(' '.join([str(k+1) for k in Y_train[i]]) + '\n')
+        f1.writelines(lines1)
+        f2.writelines(lines2)
+
+with open('x_dev', 'w') as f1:
+    with open('y_dev', 'w') as f2:
+        lines1 = []
+        lines2 = []
+        for i in range(len(X_dev)):
+            lines1.append(' '.join([str(k+1) for k in X_dev[i]]) + '\n')
+            lines2.append(' '.join([str(k+1) for k in Y_dev[i]]) + '\n')
+        f1.writelines(lines1)
+        f2.writelines(lines2)
+
