@@ -104,27 +104,29 @@ function gen_batch()
     data_index = 1
   end
   start_index = end_index - batch_size
-
-  sentences = x_train
-  t = torch.zeros(batch_size, max_sentence_len)
-  mask = torch.zeros(max_sentence_len, batch_size, batch_size)
-  max_sentence_len_batch = 1
-  for k = 1, batch_size do
-    sentence = sentences[start_index + k - 1]
-    max_sentence_len_batch = math.max(max_sentence_len_batch, #sentence)
-    for i = 1, max_sentence_len do 
-      if i <= #sentence then
-        t[k][i] = sentence[i]
-        mask[i][k][k] = 1
-      else
-        t[k][i] = vocab_size
-        mask[i][k][k] = 0
+  
+  function f(sentences)
+    local t = torch.zeros(batch_size, max_sentence_len)
+    local mask = torch.zeros(max_sentence_len, batch_size, batch_size)
+    local max_sentence_len_batch = 1
+    for k = 1, batch_size do
+      local sentence = sentences[start_index + k - 1]
+      max_sentence_len_batch = math.max(max_sentence_len_batch, #sentence)
+      for i = 1, max_sentence_len do 
+        if i <= #sentence then
+          t[k][i] = sentence[i]
+          mask[i][k][k] = 1
+        else
+          t[k][i] = vocab_size
+          mask[i][k][k] = 0
+        end
       end
-      
     end
+    return t[{{}, {1, max_sentence_len_batch}}], mask[{{1, max_sentence_len_batch},{},{}}]
   end
-  batch_ru = t[{{}, {1, max_sentence_len_batch}}]:clone()
-  mask_ru = mask[{{1, max_sentence_len_batch},{},{}}]:clone()
+  
+  batch_x, mask_x = f(x_train)
+  batch_y, mask_y = f(y_train)
   
   data_index = data_index + 1
   if data_index > n_data then 
@@ -166,7 +168,7 @@ criterion_clones = model_utils.clone_many_times(criterion, seq_length)
 
 
 -- LSTM initial state (zero initially, but final state gets sent to initial state when we do BPTT)
-local initstate_c = torch.zeros(1, rnn_size)
+local initstate_c = torch.zeros(batch_size, rnn_size)
 local initstate_h = initstate_c:clone()
 
 -- LSTM final state's backward message (dloss/dfinalstate) is 0, since it doesn't influence predictions
