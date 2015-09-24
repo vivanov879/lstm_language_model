@@ -195,7 +195,7 @@ function feval(params_)
     ------------------- forward pass -------------------
     local lstm_c = {[0]=initstate_c} -- internal cell states of LSTM
     local lstm_h = {[0]=initstate_h} -- output values of LSTM
-    local prediction = {}           -- softmax outputs
+    prediction = {}           -- softmax outputs
     local loss = 0
 
     for t=1, x:size(2) do
@@ -235,7 +235,19 @@ for i = 1, 1000 do
     local _, loss = optim.adagrad(feval, params, optim_state)
     losses[#losses + 1] = loss[1]
     if i % 1 == 0 then
-        print(string.format("iteration %4d, loss = %6.8f, loss/seq_len = %6.8f, gradnorm = %6.4e", i, loss[1], loss[1] / seq_length, grad_params:norm()))
+      
+      sample_sentence = {}
+      target_sentence = {}
+      
+      for t = 1, x:size(2) do 
+        _, sampled_index = prediction[t]:max(2)
+        --print(sampled_index)
+        sample_sentence[#sample_sentence + 1] = vocabulary[sampled_index[1][1]]
+        target_sentence[#target_sentence + 1] = vocabulary[y[1][t]]
+     end
+    print(sample_sentence)
+    print(target_sentence)
+    print(string.format("iteration %4d, loss = %6.8f, loss/seq_len = %6.8f, gradnorm = %6.4e", i, loss[1], loss[1] / seq_length, grad_params:norm()))
     end
     
     
