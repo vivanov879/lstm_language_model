@@ -78,17 +78,18 @@ max_sentence_len = math.max(calc_max_sentence_len(x_dev_raw), calc_max_sentence_
 
 batch_size = 100
 n_data = #x_train_raw
+n_data = batch_size * math.floor(n_data / batch_size)
 data_index = 1
 
 
 function gen_batch()
-  end_index = data_index + batch_size
-  if end_index > n_data then
-    end_index = n_data
+  start_index = data_index
+  end_index = math.min(n_data, start_index + batch_size - 1)
+  if end_index == n_data then
     data_index = 1
+  else
+    data_index = data_index + batch_size
   end
-  start_index = end_index - batch_size
-  data_index = data_index + batch_size
   
   function f(sentences)
     local t = torch.zeros(batch_size, max_sentence_len)
@@ -206,7 +207,7 @@ end
 -- optimization stuff
 local losses = {}
 local optim_state = {learningRate = 1e-1}
-for i = 1, 1000 do
+for i = 1, 100000 do
     local _, loss = optim.adagrad(feval, params, optim_state)
     losses[#losses + 1] = loss[1]
     if i % 10 == 0 then
@@ -215,7 +216,6 @@ for i = 1, 1000 do
       target_sentence = {}
       
       for t = 1, x:size(2) do 
-        print(x:size(2))
         _, sampled_index = prediction[t]:max(2)
         --print(sampled_index)
         sample_sentence[#sample_sentence + 1] = vocabulary[sampled_index[1][1]]
